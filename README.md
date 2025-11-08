@@ -41,10 +41,10 @@ The following diagram gives a high-level view of the data flow and main componen
 
 ```mermaid
 flowchart LR
-   Synthea --> FHIR[data/fhir]
-   FHIR --> ETL[ETL (epic_etl.run_etl)]
-   ETL --> DB[data/epic_synth.db]
+   Synthea --> FHIR
+   FHIR --> ETL
+   ETL --> DB
    ClinVar --> DB
-   DB --> VRS[variant_vrs]
-   DB --> Analytics[notebooks / ML demo]
+   DB --> VRS
+   DB --> Analytics
 ```
