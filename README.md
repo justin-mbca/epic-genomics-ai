@@ -41,10 +41,20 @@ The following diagram gives a high-level view of the data flow and main componen
 
 ```mermaid
 flowchart LR
-   Synthea[Synthea: synthetic FHIR generator] --> FHIR[FHIR files: source FHIR JSON bundles]
-   FHIR --> ETL[ETL: map FHIR to OMOP-like tables in SQLite]
-   ETL --> DB[Database: data/epic_synth.db (SQLite)]
-   ClinVar[ClinVar TSV: public variant annotations] --> DB
-   DB --> VRS[VRS: normalized variant identifiers]
-   DB --> Analytics[Analytics: notebooks and ML demo]
+   Synthea --> FHIR
+   FHIR --> ETL
+   ETL --> DB
+   ClinVar --> DB
+   DB --> VRS
+   DB --> Analytics
 ```
+
+Legend
+------
+- Synthea: synthetic FHIR generator (produces FHIR JSON bundles)
+- FHIR files: source FHIR JSON bundles used as ETL input
+- ETL: epic_etl.run_etl mapping FHIR to OMOP-like SQLite tables
+- Database: `data/epic_synth.db` (SQLite) storing OMOP-like tables
+- ClinVar TSV: public variant annotation file loaded/trimmed into DB
+- VRS: normalized variant identifiers (VRS-like ids generated in pipeline)
+- Analytics: `notebooks/` and ML demo artifacts (e.g., saved joblib model)
