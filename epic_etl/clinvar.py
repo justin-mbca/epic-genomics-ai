@@ -77,9 +77,10 @@ def normalize_trimmed_variants(db_path: Path, batch_size: int = 100_000):
     conn.commit()
     # count rows
     try:
-        total = cur.execute('select count(*) from variant_pathogenic').fetchone()[0]
+        # count rows (not used directly but keep for diagnostics if needed)
+        _ = cur.execute('select count(*) from variant_pathogenic').fetchone()[0]
     except Exception:
-        total = 0
+        _ = 0
     offset = 0
     while True:
         rows = cur.execute(f"select VariationID,GeneSymbol,Chromosome,Start,PositionVCF,ReferenceAllele,AlternateAllele,ReferenceAlleleVCF,AlternateAlleleVCF from variant_pathogenic limit {batch_size} offset {offset}").fetchall()
