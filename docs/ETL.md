@@ -3,24 +3,14 @@
 This page shows a more detailed view of the FHIR → OMOP-like ETL steps used in this repo.
 
 ```mermaid
+```mermaid
 flowchart LR
-  subgraph FHIR_DIR [data/fhir]
-    B1(Patient JSON)
-    B2(Observation JSON)
-    B3(Condition JSON)
-    B4(Encounter JSON)
-  end
-  B1 --> ETL_STEP[parse & map]
-  B2 --> ETL_STEP
-  B3 --> ETL_STEP
-  B4 --> ETL_STEP
-  ETL_STEP -->|write| PERSON[person table]
-  ETL_STEP -->|write| OBS[observation/measurement]
-  ETL_STEP -->|write| COND[condition_occurrence]
-  ETL_STEP -->|write| VISIT[visit_occurrence]
-  ClinVar -->|trim & normalize| VRS[variant_vrs]
-  VRS -->|join| PAT_VAR[patient_variant demo]
-  PERSON & VRS --> Analytics[notebooks / ML]
+  Synthea --> FHIR[data/fhir]
+  FHIR --> ETL[epic_etl.run_etl]
+  ETL --> DB[data/epic_synth.db]
+  ClinVar --> DB
+  DB --> VRS[variant_vrs]
+  DB --> Analytics[notebooks / ML demo]
 ```
 
 Notes

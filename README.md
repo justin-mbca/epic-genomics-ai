@@ -41,12 +41,10 @@ The following diagram gives a high-level view of the data flow and main componen
 
 ```mermaid
 flowchart LR
-   Synthea[Synthea (FHIR generator)] -->|FHIR JSON| FHIR[data/fhir]
-   FHIR -->|ETL| ETL[epic_etl.run_etl\n(FHIR → OMOP-like SQLite)]
-   ETL --> DB[data/epic_synth.db (SQLite)]
-   ClinVar[ClinVar TSV] -->|load + trim| DB
-   DB --> VRS[variant_vrs (VRS-like ids)]
-   DB --> Analytics[notebooks / ML demo\n(joblib model)]
-   style Synthea fill:#f9f,stroke:#333,stroke-width:1px
-   style DB fill:#fffbcc,stroke:#333
+   Synthea --> FHIR[data/fhir]
+   FHIR --> ETL[ETL (epic_etl.run_etl)]
+   ETL --> DB[data/epic_synth.db]
+   ClinVar --> DB
+   DB --> VRS[variant_vrs]
+   DB --> Analytics[notebooks / ML demo]
 ```
