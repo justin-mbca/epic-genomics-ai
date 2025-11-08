@@ -6,3 +6,6 @@ data/
 *.db
 *.pyc
 synthea.jar
+# notebook outputs
+*.ipynb_checkpoints
+notebooks/*_output.ipynb
