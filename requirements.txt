@@ -1,0 +1,6 @@
+click
+pandas
+fastjsonschema
+requests
+matplotlib
+jupyter
