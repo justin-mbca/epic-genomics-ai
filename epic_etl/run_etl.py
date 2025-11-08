@@ -3,6 +3,7 @@
 Usage:
     python -m epic_etl.run_etl --fhir-dir data/fhir --out-db data/epic_synth.db
 """
+
 import argparse
 import json
 import os
@@ -183,8 +184,14 @@ def process_fhir_dir(fhir_dir: str, out_db: str):
                     person_id = None
                     if subject and subject.startswith("Patient/"):
                         person_id = subject.split("/", 1)[1]
-                    start = res.get("period", {}).get("start") if res.get("period") else None
-                    visit_type = res.get("class", {}).get("code") if res.get("class") else None
+                    start = (
+                        res.get("period", {}).get("start")
+                        if res.get("period")
+                        else None
+                    )
+                    visit_type = (
+                        res.get("class", {}).get("code") if res.get("class") else None
+                    )
                     cur = conn.cursor()
                     cur.execute(
                         "INSERT OR REPLACE INTO visit_occurrence (visit_id, person_id, visit_start_date, visit_concept) VALUES (?,?,?,?)",
