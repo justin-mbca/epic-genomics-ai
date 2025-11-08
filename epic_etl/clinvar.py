@@ -29,6 +29,83 @@ def load_variants(tsv_path: Path, db_path: Path):
     conn.close()
 
 
+def create_trimmed_variant_table(tsv_path: Path, db_path: Path, clinical_filter: str = 'Pathogenic', chunksize: int = 200_000):
+    """Create a smaller `variant_pathogenic` table from the full ClinVar TSV.
+
+    This reads the TSV in chunks, filters rows where `ClinicalSignificance` contains
+    `clinical_filter`, and writes a useful subset of columns to SQLite for fast analytics.
+    """
+    cols_of_interest = [
+        'VariationID', 'GeneSymbol', 'ClinicalSignificance',
+        'Chromosome', 'Start', 'ReferenceAllele', 'AlternateAllele',
+        'PositionVCF', 'ReferenceAlleleVCF', 'AlternateAlleleVCF'
+    ]
+    conn = sqlite3.connect(str(db_path))
+    first = True
+    for chunk in pd.read_csv(tsv_path, sep='\t', low_memory=False, chunksize=chunksize):
+        if 'ClinicalSignificance' not in chunk.columns:
+            continue
+        sel = chunk[chunk['ClinicalSignificance'].astype(str).str.contains(clinical_filter, na=False)]
+        if sel.empty:
+            continue
+        # keep only columns that exist in this file
+        keep = [c for c in cols_of_interest if c in sel.columns]
+        out = sel[keep].copy()
+        out.to_sql('variant_pathogenic', conn, if_exists='append' if not first else 'replace', index=False)
+        first = False
+    conn.close()
+
+
+def normalize_trimmed_variants(db_path: Path, batch_size: int = 100_000):
+    """Compute a stable, deterministic VRS-like id for rows in `variant_pathogenic`.
+
+    This produces a `variant_vrs` table with columns: vrs_id, VariationID, gene, vrs_input.
+    The vrs_id is a sha256 hex digest of a canonical allele string.
+    """
+    import hashlib
+    conn = sqlite3.connect(str(db_path))
+    cur = conn.cursor()
+    # create target table
+    cur.execute('''
+    CREATE TABLE IF NOT EXISTS variant_vrs (
+        vrs_id TEXT PRIMARY KEY,
+        VariationID INTEGER,
+        GeneSymbol TEXT,
+        vrs_input TEXT
+    )
+    ''')
+    conn.commit()
+    # count rows
+    try:
+        total = cur.execute('select count(*) from variant_pathogenic').fetchone()[0]
+    except Exception:
+        total = 0
+    offset = 0
+    while True:
+        rows = cur.execute(f"select VariationID,GeneSymbol,Chromosome,Start,PositionVCF,ReferenceAllele,AlternateAllele,ReferenceAlleleVCF,AlternateAlleleVCF from variant_pathogenic limit {batch_size} offset {offset}").fetchall()
+        if not rows:
+            break
+        inserts = []
+        for r in rows:
+            VariationID, GeneSymbol, Chromosome, Start, PositionVCF, Ref, Alt, RefVCF, AltVCF = r
+            # prefer VCF fields when available
+            pos = PositionVCF if PositionVCF not in (None, '') else Start
+            ref = RefVCF if RefVCF not in (None, '') else Ref
+            alt = AltVCF if AltVCF not in (None, '') else Alt
+            if Chromosome in (None, '') or pos in (None, '') or ref in (None, '') or alt in (None, ''):
+                # skip incomplete allele descriptions
+                continue
+            vrs_input = f"{Chromosome}:{pos}:{ref}:{alt}"
+            vrs_id = hashlib.sha256(vrs_input.encode('utf-8')).hexdigest()
+            inserts.append((vrs_id, VariationID, GeneSymbol, vrs_input))
+        cur.executemany('insert OR IGNORE into variant_vrs (vrs_id,VariationID,GeneSymbol,vrs_input) values (?,?,?,?)', inserts)
+        conn.commit()
+        offset += batch_size
+    conn.close()
+
+
+
+
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser()
