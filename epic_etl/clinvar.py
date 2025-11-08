@@ -82,25 +82,46 @@ def normalize_trimmed_variants(db_path: Path, batch_size: int = 100_000):
     except Exception:
         _ = 0
     offset = 0
+    # discover which columns exist in variant_pathogenic and query only those
+    cur2 = conn.cursor()
+    cur2.execute("PRAGMA table_info(variant_pathogenic)")
+    cols = [r[1] for r in cur2.fetchall()]
+    desired = [
+        'VariationID', 'GeneSymbol', 'Chromosome', 'Start', 'PositionVCF',
+        'ReferenceAllele', 'AlternateAllele', 'ReferenceAlleleVCF', 'AlternateAlleleVCF'
+    ]
+    present = [c for c in desired if c in cols]
+    if 'VariationID' not in present or 'Chromosome' not in present:
+        # nothing sensible to do without at least VariationID and Chromosome
+        conn.close()
+        return
+
+    select_clause = ",".join(present)
     while True:
-        rows = cur.execute(f"select VariationID,GeneSymbol,Chromosome,Start,PositionVCF,ReferenceAllele,AlternateAllele,ReferenceAlleleVCF,AlternateAlleleVCF from variant_pathogenic limit {batch_size} offset {offset}").fetchall()
+        rows = cur.execute(f"select {select_clause} from variant_pathogenic limit {batch_size} offset {offset}").fetchall()
         if not rows:
             break
         inserts = []
         for r in rows:
-            VariationID, GeneSymbol, Chromosome, Start, PositionVCF, Ref, Alt, RefVCF, AltVCF = r
-            # prefer VCF fields when available
-            pos = PositionVCF if PositionVCF not in (None, '') else Start
-            ref = RefVCF if RefVCF not in (None, '') else Ref
-            alt = AltVCF if AltVCF not in (None, '') else Alt
+            # row is a tuple aligned with `present`
+            rec = dict(zip(present, r))
+            VariationID = rec.get('VariationID')
+            GeneSymbol = rec.get('GeneSymbol')
+            Chromosome = rec.get('Chromosome')
+            # prefer VCF position when available
+            pos = rec.get('PositionVCF') if 'PositionVCF' in rec else rec.get('Start')
+            # prefer VCF alleles when available
+            ref = rec.get('ReferenceAlleleVCF') if 'ReferenceAlleleVCF' in rec and rec.get('ReferenceAlleleVCF') not in (None, '') else rec.get('ReferenceAllele')
+            alt = rec.get('AlternateAlleleVCF') if 'AlternateAlleleVCF' in rec and rec.get('AlternateAlleleVCF') not in (None, '') else rec.get('AlternateAllele')
             if Chromosome in (None, '') or pos in (None, '') or ref in (None, '') or alt in (None, ''):
                 # skip incomplete allele descriptions
                 continue
             vrs_input = f"{Chromosome}:{pos}:{ref}:{alt}"
             vrs_id = hashlib.sha256(vrs_input.encode('utf-8')).hexdigest()
             inserts.append((vrs_id, VariationID, GeneSymbol, vrs_input))
-        cur.executemany('insert OR IGNORE into variant_vrs (vrs_id,VariationID,GeneSymbol,vrs_input) values (?,?,?,?)', inserts)
-        conn.commit()
+        if inserts:
+            cur.executemany('insert OR IGNORE into variant_vrs (vrs_id,VariationID,GeneSymbol,vrs_input) values (?,?,?,?)', inserts)
+            conn.commit()
         offset += batch_size
     conn.close()
 
